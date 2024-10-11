@@ -33,7 +33,7 @@ int32_t twoComplement(int32_t v) {
 }
 std::string getRegistersStr() {
     std::stringstream registersStr;
-    registersStr << "registers";
+    registersStr << "Registers";
     int row = 0;
     for (int i = 0; i < 32; ++i) {
         if (i % 8 == 0) {
@@ -239,7 +239,7 @@ struct SW : public Category1 {
     }
     std::string instructionToString() const override {
         std::stringstream str;
-        str << this->address << "\tsw x" << twoComplement(this->s1.to_ullong()) << ", #" << this->immV << "(x" << twoComplement(this->s2.to_ullong()) << ")" << std::endl;
+        str << this->address << "\tsw x" << twoComplement(this->s1.to_ullong()) << ", " << this->immV << "(x" << twoComplement(this->s2.to_ullong()) << ")" << std::endl;
         return str.str();
     }
 };
@@ -296,7 +296,7 @@ struct ADDI : public Category3 {
     }
     std::string instructionToString() const override {
         std::stringstream str;
-        str << this->address << "\taddi x" << twoComplement(this->s1.to_ullong()) << ", #" << twoComplement(this->imm.to_ullong()) << std::endl;
+        str << this->address << "\taddi x" << twoComplement(this->rd.to_ullong()) << ", x" << twoComplement(this->s1.to_ullong()) << ", #" << twoComplement(this->imm.to_ullong()) << std::endl;
         return str.str();
     }
 };
@@ -351,7 +351,7 @@ struct LW : public Category3 {
     }
     std::string instructionToString() const override {
         std::stringstream str;
-        str << this->address << "\tlw x" << twoComplement(this->rd.to_ullong()) << ", #" << twoComplement(this->imm.to_ullong()) << "(x" << this->s1.to_ullong() << ")" << std::endl;
+        str << this->address << "\tlw x" << twoComplement(this->rd.to_ullong()) << ", " << twoComplement(this->imm.to_ullong()) << "(x" << this->s1.to_ullong() << ")" << std::endl;
         return str.str();
     }
 };
@@ -472,7 +472,7 @@ bool getCodes(std::vector<std::bitset<32>>& codes, std::string fileName) {
 std::string getDisassembly(std::vector<std::bitset<32>>& codes, std::vector<std::unique_ptr<Instruction>>& instructions) {
     std::stringstream disassemblyStr;
     for (int i = 0; i < codes.size(); ++i) {
-        disassemblyStr << codes[i] << "\t" << ((i < instructions.size()) ? instructions[i]->instructionToString() : std::to_string(dataMap[instructions.back()->address+4*(i-instructions.size()+1)]) + "\n");
+        disassemblyStr << codes[i] << "\t" << ((i < instructions.size()) ? instructions[i]->instructionToString() : std::to_string(instructions.back()->address+4*(i-instructions.size()+1)) + "\t" + std::to_string(dataMap[instructions.back()->address+4*(i-instructions.size()+1)]) + "\n");
     }
     return disassemblyStr.str();
 }
@@ -496,7 +496,7 @@ bool writeSim(const std::string& fileName, const std::string& instructionStr) {
         std::exit(EXIT_FAILURE);
     }
 
-    outputFile << instructionStr << std::endl;
+    outputFile << instructionStr;
 
     outputFile.close();
     return true;
