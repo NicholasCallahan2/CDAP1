@@ -1,3 +1,12 @@
+// On my honor, I have neither given nor received any unauthorized aid on this assignment.
+
+// disassembly output file name.
+#define OUTPUTDISASSEMBLY "disassembly.txt"
+
+// simulation output file name.
+#define OUTPUTSIMULATION "simulation.txt"
+
+
 #include <iostream>
 #include <cstdlib>
 #include <fstream>
@@ -307,7 +316,7 @@ struct ANDI : public Category3 {
     }
     std::string instructionToString() const override {
         std::stringstream str;
-        str << this->address << "\tandi x" << twoComplement(this->s1.to_ullong()) << ", #" << twoComplement(this->imm.to_ullong()) << std::endl;
+        str << this->address << "\tandi x" << twoComplement(this->rd.to_ullong()) << ", x"<< twoComplement(this->s1.to_ullong()) << ", #" << twoComplement(this->imm.to_ullong()) << std::endl;
         return str.str();
     }
 };
@@ -340,7 +349,7 @@ struct SRA : public Category3 {
     }
     std::string instructionToString() const override {
         std::stringstream str;
-        str << this->address << "\tsra x" << twoComplement(this->s1.to_ullong()) << ", #" << twoComplement(this->imm.to_ullong()) << std::endl;
+        str << this->address << "\tsra x" << twoComplement(this->rd.to_ullong()) << ", x" << twoComplement(this->s1.to_ullong()) << ", #" << twoComplement(this->imm.to_ullong()) << std::endl;
         return str.str();
     }
 };
@@ -515,8 +524,8 @@ int main(int argc, char *argv[]) {
     uint32_t breakAddress = createInstructions(instructionList, codes);
     loadData(breakAddress, codes);
 
-    writeDisassembly("disassembly.txt", getDisassembly(codes, instructionList));
-    writeSim("simulation.txt", simulateInstructions(instructionList));
+    writeDisassembly(OUTPUTDISASSEMBLY, getDisassembly(codes, instructionList));
+    writeSim(OUTPUTSIMULATION, simulateInstructions(instructionList));
 
     return 0;
 }
