@@ -51,13 +51,15 @@ std::string getDataMapStr(int32_t address) {
     std::stringstream DataMapStr;
     DataMapStr << "Data";
     address = address + 4;
-    int row = 0;
     for (int i = 0; i < dataMap.size(); ++i) {
         if (i % 8 == 0) {
             DataMapStr << std::endl;
             DataMapStr << address << ":\t";
+            DataMapStr << dataMap.at(address);
+        } else {
+            DataMapStr << "\t";
+            DataMapStr << dataMap.at(address);
         }
-        DataMapStr << dataMap.at(address) << "\t";
         address = address + 4;
     }
     return DataMapStr.str();
@@ -475,6 +477,31 @@ std::string getDisassembly(std::vector<std::bitset<32>>& codes, std::vector<std:
     return disassemblyStr.str();
 }
 
+bool writeDisassembly(const std::string& fileName, const std::string& disassemblyStr) {
+    std::ofstream outputFile(fileName);
+    if (!outputFile) {
+        std::cerr << "Error: Failed Opening Output File." << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
+
+    outputFile << disassemblyStr << std::endl;
+
+    outputFile.close();
+    return true;
+}
+bool writeSim(const std::string& fileName, const std::string& instructionStr) {
+    std::ofstream outputFile(fileName);
+    if (!outputFile) {
+        std::cerr << "Error: Failed Opening Output File." << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
+
+    outputFile << instructionStr << std::endl;
+
+    outputFile.close();
+    return true;
+}
+
 int main(int argc, char *argv[]) {
     if (argc != 2) {
         std::cerr << "Error: Input File is Required." << std::endl;
@@ -487,6 +514,9 @@ int main(int argc, char *argv[]) {
     getCodes(codes, argv[1]);
     uint32_t breakAddress = createInstructions(instructionList, codes);
     loadData(breakAddress, codes);
-    std::cout << getDisassembly(codes, instructionList);
-    std::cout << simulateInstructions(instructionList);
+
+    writeDisassembly("disassembly.txt", getDisassembly(codes, instructionList));
+    writeSim("simulation.txt", simulateInstructions(instructionList));
+
+    return 0;
 }
