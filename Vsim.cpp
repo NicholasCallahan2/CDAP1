@@ -38,7 +38,7 @@ int32_t twoComplement(std::bitset<N> bits) {
     return bits[N-1] ? ((~bits).to_ullong() + 1) * -1 : bits.to_ullong();
 }
 int32_t twoComplement(int32_t v) {
-    return v < 0 ? ~(v * -1) + 1: v;
+    return std::bitset<32>(v)[31] ? ~(v * -1) + 1: v;
 }
 std::string getRegistersStr() {
     std::stringstream registersStr;
@@ -301,11 +301,11 @@ struct OR : public Category2 {
 struct ADDI : public Category3 {
     ADDI(const std::bitset<32>& instCode, const uint32_t& ad) : Category3(instCode.to_ullong(), ad) {}
     void preformOperation() const override {
-        registers[this->rd.to_ullong()] = twoComplement(twoComplement(registers[this->s1.to_ullong()]) + twoComplement(this->imm.to_ullong()));
+        registers[this->rd.to_ullong()] = twoComplement(twoComplement(registers[this->s1.to_ullong()]) + twoComplement(this->imm));
     }
     std::string instructionToString() const override {
         std::stringstream str;
-        str << this->address << "\taddi x" << twoComplement(this->rd.to_ullong()) << ", x" << twoComplement(this->s1.to_ullong()) << ", #" << twoComplement(this->imm.to_ullong()) << std::endl;
+        str << this->address << "\taddi x" << twoComplement(this->rd.to_ullong()) << ", x" << twoComplement(this->s1.to_ullong()) << ", #" << twoComplement(this->imm) << std::endl;
         return str.str();
     }
 };
