@@ -27,6 +27,7 @@
         "iterator": "cpp",
         "limits": "cpp",
         "list": "cpp",
+        "map": "cpp",
         "memory": "cpp",
         "new": "cpp",
         "ostream": "cpp",
@@ -52,6 +53,7 @@
         "xstddef": "cpp",
         "xstring": "cpp",
         "xtr1common": "cpp",
+        "xtree": "cpp",
         "xutility": "cpp"
     }
 }
