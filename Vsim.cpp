@@ -18,6 +18,7 @@
 #include <memory>
 #include <queue>
 #include <utility>
+#include "Vsim.h"
 
 uint32_t registers[32];
 bool flaggedRegisters[32] = {};
@@ -52,7 +53,7 @@ int32_t twoComplement(std::bitset<N> bits) {
     return bits[N-1] ? ((~bits).to_ullong() + 1) * -1 : bits.to_ullong();
 }
 int32_t twoComplement(int32_t v) {
-    return v < 0 ? ~(v * -1) + 1: v;
+    return std::bitset<32>(v)[31] ? ~(v * -1) + 1: v;
 }
 std::string getRegistersStr() {
     std::stringstream registersStr;
@@ -104,7 +105,6 @@ struct Instruction {
     virtual std::string instructionToString() const = 0;
     virtual void flagRegisters() const = 0;
     virtual void unflagRegisters() const = 0;
-    virtual void flagSDRegisters() const = 0;
     virtual std::vector<unsigned int> getRegisters() const = 0;
 };
 
@@ -367,11 +367,11 @@ struct OR : public Category2 {
 struct ADDI : public Category3 {
     ADDI(const std::bitset<32>& instCode, const uint32_t& ad) : Category3(instCode.to_ullong(), ad) {}
     void preformOperation() const override {
-        registers[this->rd.to_ullong()] = twoComplement(twoComplement(registers[this->s1.to_ullong()]) + twoComplement(this->imm.to_ullong()));
+        registers[this->rd.to_ullong()] = twoComplement(twoComplement(registers[this->s1.to_ullong()]) + twoComplement(this->imm));
     }
     std::string instructionToString() const override {
         std::stringstream str;
-        str << this->address << "\taddi x" << twoComplement(this->rd.to_ullong()) << ", x" << twoComplement(this->s1.to_ullong()) << ", #" << twoComplement(this->imm.to_ullong()) << std::endl;
+        str << this->address << "\taddi x" << twoComplement(this->rd.to_ullong()) << ", x" << twoComplement(this->s1.to_ullong()) << ", #" << twoComplement(this->imm) << std::endl;
         return str.str();
     }
 };
@@ -716,26 +716,49 @@ std::string writePREISSUEQ(std::queue<int> preIssue, std::vector<std::unique_ptr
     }
     return resultstr.str();
 }
+std::string writePREALU1(std::queue<int> alu1, std::vector<std::unique_ptr<Instruction>> &instructionList) {
+    std::stringstream resultstr;
+    resultstr << "\nPre-ALU1 Queue:\n\tEntry 0:";
+    if (!alu1.empty()) {
+        resultstr << instructionList[alu1.front()]->instructionToString();
+        alu1.pop();
+    }
+    resultstr << "\n\tEntry 1:";
+    if (!alu1.empty()) {
+        resultstr << instructionList[alu1.front()]->instructionToString();
+        alu1.pop();
+    }
+    return resultstr.str();
+}
+std::string writePREALU2(std::queue<int> alu2, std::vector<std::unique_ptr<Instruction>> &instructionList) {
+    std::stringstream resultstr;
+    resultstr << "\nPre-ALU2 Queue:\n\tEntry 0:";
+    if (!alu2.empty()) {
+        resultstr << instructionList[alu2.front()]->instructionToString();
+        alu2.pop();
+    }
+    resultstr << "\n\tEntry 1:";
+    if (!alu2.empty()) {
+        resultstr << instructionList[alu2.front()]->instructionToString();
+        alu2.pop();
+    }
+    return resultstr.str();
+}
 bool issueInst(std::vector<std::unique_ptr<Instruction>> &instructionList, int inst, int FU) {
     if (!Busy[FU] && instructionList[inst]->getRegisters()[0] == 1 ? true : Result[instructionList[inst]->getRegisters().back()] == -1) {  // Check if FU is available and no instruction writes to dst
-        // Mark the functional unit as busy
         Busy[FU] = true;
         
-        // Assign the operation and registers to the functional unit
         Op[FU] = instructionList[inst]->address;
         Fi[FU] = instructionList[inst]->getRegisters()[0] == 1 ? -1 : instructionList[inst]->getRegisters().back();
         Fj[FU] = instructionList[inst]->getRegisters()[0] == 4 ? -1 : instructionList[inst]->getRegisters()[1];
         Fk[FU] = instructionList[inst]->getRegisters()[0] > 2 ? -1 : instructionList[inst]->getRegisters()[2];
         
-        // Set the producer registers for the source registers
         Qj[FU] = instructionList[inst]->getRegisters()[0] == 4 ? -1 : Result[instructionList[inst]->getRegisters()[1]];
         Qk[FU] = instructionList[inst]->getRegisters()[0] > 2 ? -1 : Result[instructionList[inst]->getRegisters()[2]];
         
-        // Set ready flags for source registers (1 if ready, 0 if not)
-        Rj[FU] = (Qj[FU] == -1);  // If Qj is -1, the register is ready
-        Rk[FU] = (Qk[FU] == -1);  // If Qk is -1, the register is ready
+        Rj[FU] = (Qj[FU] == -1);
+        Rk[FU] = (Qk[FU] == -1);
         
-        // Update the Result array to show which FU will produce the result for the destination register
         if (instructionList[inst]->getRegisters()[0] != 1){
              Result[instructionList[inst]->getRegisters().back()] = FU;
         }
@@ -745,7 +768,7 @@ bool issueInst(std::vector<std::unique_ptr<Instruction>> &instructionList, int i
 }
 struct issue {
     bool checkScoreboard(std::vector<std::unique_ptr<Instruction>> &instructionList, int inst1, int FU) {
-        if (instructionList[inst1]->getRegisters()[0] == 1 ? false : Result[instructionList[inst1]->getRegisters().back()] != -1) {  // Check if FU is available and no instruction writes to dst
+        if (instructionList[inst1]->getRegisters()[0] == 1 ? false : Result[instructionList[inst1]->getRegisters().back()] != -1) {
             return false;
         }
         if (instructionList[inst1]->getRegisters()[0] > 2 ? -1 : Result[instructionList[inst1]->getRegisters()[2]] != -1 || instructionList[inst1]->getRegisters()[0] == 4 ? -1 : Result[instructionList[inst1]->getRegisters()[1]] != -1) {
@@ -753,184 +776,216 @@ struct issue {
         }
         return true;
     }
-    bool checkScoreboard(std::vector<std::unique_ptr<Instruction>> &instructionList, std::vector<int> previousInstructions, int inst, int FU) {
-        bool BusyTest[4];       // Busy status of functional units
-        int OpTest[4];          // Operation assigned to each functional unit
-        int FiTest[4];          // Destination register for each functional unit
-        int FjTest[4];          // First source register
-        int FkTest[4];          // Second source register
-        int QjTest[4];          // Producer of the first source register
-        int QkTest[4];          // Producer of the second source register
-        bool RjTest[4];         // Ready status of the first source register (1 if ready, 0 if not)
-        bool RkTest[4];         // Ready status of the second source register (1 if ready, 0 if not)
-        int ResultTest[32];
-        for (int i = 0; i < 4; i++) {
-            BusyTest[i] = false;
-            OpTest[i] = -1;
-            FiTest[i] = -1;
-            FjTest[i] = -1;
-            FkTest[i] = -1;
-            QjTest[i] = -1;
-            QkTest[i] = -1;
-            RjTest[i] = false;
-            RkTest[i] = false;
-        }
-        for (int i = 0; i < 32; i++) {
-            ResultTest[i] = -1;  // -1 means the register is not currently being written by any FU
+    bool checkWAWorWAR(std::vector<std::unique_ptr<Instruction>> &instructionList, int inst1, int inst2) {
+        if (instructionList[inst1]->getRegisters()[0] != 1 && instructionList[inst2]->getRegisters()[0] != 1) {
+            return true;
         }
 
-        if (instructionList[inst]->getRegisters()[0] == 1 ? true : Result[instructionList[inst]->getRegisters().back()] == -1) {  // Check if FU is available and no instruction writes to dst
-            // Mark the functional unit as busy
+        // waw
+        if (instructionList[inst1]->getRegisters().back() == instructionList[inst2]->getRegisters().back()) {
+            return false;
+        }
 
-            // Assign the operation and registers to the functional unit
-            OpTest[FU] = instructionList[inst]->address;
-            FiTest[FU] = instructionList[inst]->getRegisters()[0] == 1 ? -1 : instructionList[inst]->getRegisters().back();
-            FjTest[FU] = instructionList[inst]->getRegisters()[0] == 4 ? -1 : instructionList[inst]->getRegisters()[1];
-            FkTest[FU] = instructionList[inst]->getRegisters()[0] > 2 ? -1 : instructionList[inst]->getRegisters()[2];
-
-            // Set the producer registers for the source registers
-            QjTest[FU] = instructionList[inst]->getRegisters()[0] == 4 ? -1 : ResultTest[instructionList[inst]->getRegisters()[1]];
-            QkTest[FU] = instructionList[inst]->getRegisters()[0] > 2 ? -1 : ResultTest[instructionList[inst]->getRegisters()[2]];
-
-            // Set ready flags for source registers (1 if ready, 0 if not)
-            RjTest[FU] = (QjTest[FU] == -1);  // If Qj is -1, the register is ready
-            RkTest[FU] = (QkTest[FU] == -1);  // If Qk is -1, the register is ready
-
-            // Update the Result array to show which FU will produce the result for the destination register
-            if (instructionList[inst]->getRegisters()[0] != 1){
-                 ResultTest[instructionList[inst]->getRegisters().back()] = FU;
+        // war
+        for (int i = 1; i < instructionList[inst2]->getRegisters().size()-1; ++i){
+            if (instructionList[inst1]->getRegisters().back() == instructionList[inst2]->getRegisters()[i]) {
+                return false;
             }
         }
-
-        if (instructionList[inst]->getRegisters()[0] == 1 ? false : ResultTest[instructionList[inst]->getRegisters().back()] != -1) {  // Check if FU is available and no instruction writes to dst
-            return false;
-        }
-        if (instructionList[inst]->getRegisters()[0] > 2 ? -1 : ResultTest[instructionList[inst]->getRegisters()[2]] != -1 || instructionList[inst]->getRegisters()[0] == 4 ? -1 : ResultTest[instructionList[inst]->getRegisters()[1]] != -1) {
-            return false;
+        return true;
+    }
+    bool checkRAW(std::vector<std::unique_ptr<Instruction>> &instructionList, int inst1, int inst2) {
+        // raw
+        for (int i = 1; i < instructionList[inst1]->getRegisters().size()-1; ++i){
+            if (instructionList[inst2]->getRegisters().back() == instructionList[inst1]->getRegisters()[i]) {
+                return false;
+            }
         }
         return true;
     }
 
-    void cycle(std::vector<std::unique_ptr<Instruction>> &instructionList, std::queue<int> preIssue, std::queue<int>& alu1, std::queue<int>& alu2) {
-        for (int i = 0; i < 4; i++) {
-            if (!preIssue.empty()) {
-                int inst = preIssue.front();
-                preIssue.pop();
+    bool checkDataHazard(std::vector<std::unique_ptr<Instruction>> &instructionList, int inst1, std::vector<int> ealierInstructions) {
+        if (!checkWAR(instructionList, inst1, ealierInstructions)) {
+            return false;
+        }
 
-                if (isLoadorStore(instructionList, inst)) {
-                    if (!openALU(alu1)) {
-                        continue;
+        for (int i = 0; i < ealierInstructions.size(); ++i) {
+            int inst2 = ealierInstructions[i];
+            for (int i = 1; i < instructionList[inst2]->getRegisters().size()-1; ++i){
+                if (instructionList[inst1]->getRegisters()[0] != 1 && instructionList[inst2]->getRegisters()[0] != 1) {
+                    if (instructionList[inst1]->getRegisters().back() == instructionList[inst2]->getRegisters().back()) {
+                        return false;
                     }
-                    if (!checkScoreboard(instructionList, inst, 1)) {
-                        continue;
+                    for (int i = 1; i < instructionList[inst2]->getRegisters().size()-1; ++i){
+                        if (instructionList[inst1]->getRegisters().back() == instructionList[inst2]->getRegisters()[i]) {
+                            return false;
+                        }
                     }
-                    issueInst(instructionList, inst, 1);
-                } else {
-                    if (!openALU(alu2)) {
-                        continue;
-                    }
-                    if (!checkScoreboard(instructionList, inst, 2)) {
-                        continue;
-                    }
-                    issueInst(instructionList, inst, 2);
                 }
             }
+        }
+        return true;
+    }
+
+    bool checkWAR(std::vector<std::unique_ptr<Instruction>> &instructionList, int inst1, std::vector<int> ealierInstructions) {
+        for (int i = 0; i < ealierInstructions.size(); ++i) {
+            int inst2 = ealierInstructions[i];
+            for (int i = 1; i < instructionList[inst2]->getRegisters().size()-1; ++i){
+                if (instructionList[inst1]->getRegisters().back() == instructionList[inst2]->getRegisters()[i]) {
+                return false;
+                }
+            }
+        }
+        return true;
+    }
+    bool checkLoadStoreOrder(std::vector<std::unique_ptr<Instruction>> &instructionList, int inst1, std::vector<int> ealierInstructions) {
+        if (!isLoadStore(instructionList, inst1)) {
+            return true;
+        }
+        if (isStore(instructionList, inst1)) {
+            return true;
+        }
+        for (int i = 0; i < ealierInstructions.size(); ++i) {
+            if (isStore(instructionList, ealierInstructions[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    bool checkCanIssue(std::vector<std::unique_ptr<Instruction>> &instructionList, std::queue<int> preIssue, int inst0, int inst1, std::queue<int>& alu1, std::queue<int>& alu2) {
+        if (inst1 != -1 && !checkWAWorWAR(instructionList, inst0, inst1)) {
+            return false;
+        }
+        if (inst1 != -1 && isLoadStore(instructionList, inst0) == isLoadStore(instructionList, inst1)) {
+            return false;
+        }
+
+        if (isLoadStore(instructionList, inst0)) {
+            if (!openALU(alu1)) {
+                return false;
+            }
+            if (!checkScoreboard(instructionList, inst0, 1)) {
+                return false;
+            }
+            return true;
+        } else {
+            if (!openALU(alu2)) {
+                return false;
+            }
+            if (!checkScoreboard(instructionList, inst0, 2)) {
+                return false;
+            }
+            return true;
+        }
+    }
+
+    std::vector<int> findValidInstructions(std::vector<std::unique_ptr<Instruction>> &instructionList, std::queue<int> preIssue, std::queue<int>& alu1, std::queue<int>& alu2) {
+        std::vector<int> skippedInstructions;
+        std::vector<int> validInstructions;
+        if (preIssue.empty()) {
+            return std::vector<int> {};
+        }
+        int inst0 = preIssue.front();
+        preIssue.pop();
+        if (!checkCanIssue(instructionList, preIssue, inst0, -1, alu1, alu2)) {
+            skippedInstructions.push_back(inst0);
+            if (!preIssue.empty() && !isStore(instructionList, inst0)) {
+                int inst1 = preIssue.front();
+                preIssue.pop();
+                if (!checkLoadStoreOrder(instructionList, inst1, skippedInstructions) || !checkDataHazard(instructionList, inst1, skippedInstructions) || !checkCanIssue(instructionList, preIssue, inst0, inst1, alu1, alu2)) {
+                    skippedInstructions.push_back(inst1);
+                    if (!preIssue.empty() && !isStore(instructionList, inst1)) {
+                        int inst2 = preIssue.front();
+                        preIssue.pop();
+                        if (!checkLoadStoreOrder(instructionList, inst2, skippedInstructions) || !checkDataHazard(instructionList, inst2, skippedInstructions) || !checkCanIssue(instructionList, preIssue, inst1, inst2, alu1, alu2) || !checkCanIssue(instructionList, preIssue, inst0, inst2, alu1, alu2)) {
+                            skippedInstructions.push_back(inst2);
+                            if (!preIssue.empty() && !isStore(instructionList, inst2)) {
+                                int inst3 = preIssue.front();
+                                preIssue.pop();
+                                if (!checkLoadStoreOrder(instructionList, inst3, skippedInstructions) || !checkDataHazard(instructionList, inst3, skippedInstructions) || !checkCanIssue(instructionList, preIssue, inst0, inst3, alu1, alu2) || !checkCanIssue(instructionList, preIssue, inst1, inst3, alu1, alu2) || !checkCanIssue(instructionList, preIssue, inst2, inst3, alu1, alu2)) {
+                                    skippedInstructions.push_back(inst3);
+                                } else {
+                                    validInstructions.push_back(inst3);
+                                }
+                            }
+                        } else {
+                            validInstructions.push_back(inst2);
+                        }
+                    }
+                } else {
+                    validInstructions.push_back(inst1);
+                }
+            }
+        } else {
+            validInstructions.push_back(inst0);
+            if (!preIssue.empty()) {
+                int inst1 = preIssue.front();
+                preIssue.pop();
+                if (!checkLoadStoreOrder(instructionList, inst1, validInstructions) || !checkDataHazard(instructionList, inst1, validInstructions) || !checkCanIssue(instructionList, preIssue, inst0, inst1, alu1, alu2)) {
+                    skippedInstructions.push_back(inst1);
+                    if (!preIssue.empty() && !isStore(instructionList, inst1)) {
+                        int inst2 = preIssue.front();
+                        preIssue.pop();
+                        if (!checkLoadStoreOrder(instructionList, inst2, skippedInstructions) || !checkLoadStoreOrder(instructionList, inst2, validInstructions) || !checkDataHazard(instructionList, inst2, validInstructions) || !checkDataHazard(instructionList, inst2, skippedInstructions) || !checkCanIssue(instructionList, preIssue, inst1, inst2, alu1, alu2) || !checkCanIssue(instructionList, preIssue, inst0, inst2, alu1, alu2)) {
+                            skippedInstructions.push_back(inst2);
+                            if (!preIssue.empty() && !isStore(instructionList, inst2)) {
+                                int inst3 = preIssue.front();
+                                preIssue.pop();
+                                if (!checkLoadStoreOrder(instructionList, inst3, skippedInstructions) || !checkLoadStoreOrder(instructionList, inst3, validInstructions) || !checkDataHazard(instructionList, inst3, validInstructions) || !checkDataHazard(instructionList, inst3, skippedInstructions) || !checkCanIssue(instructionList, preIssue, inst0, inst3, alu1, alu2) || !checkCanIssue(instructionList, preIssue, inst1, inst3, alu1, alu2) || !checkCanIssue(instructionList, preIssue, inst2, inst3, alu1, alu2)) {
+                                    skippedInstructions.push_back(inst3);
+                                } else {
+                                    validInstructions.push_back(inst3);
+                                }
+                            }
+                        } else {
+                            validInstructions.push_back(inst2);
+                        }
+                    }
+                } else {
+                    validInstructions.push_back(inst1);
+                }
+            }
+        }
+        return validInstructions;
+    }
+
+    void cycle(std::vector<std::unique_ptr<Instruction>> &instructionList, std::queue<int> &preIssue, std::queue<int>& alu1, std::queue<int>& alu2) {
+        std::vector<int> validInstructions = findValidInstructions(instructionList, preIssue, alu1, alu2);
+        std::queue<int> temp;
+        for (int i = 0; i < validInstructions.size(); ++i) {
+            if (!issueInst(instructionList, validInstructions[i], isLoadStore(instructionList, validInstructions[i]) ? 1 : 2)) {
+                std::cout << "cycle error";
+            }
+            while(!preIssue.empty()) {
+                if (preIssue.front() != validInstructions[i]) {
+                    temp.push(preIssue.front());
+                }
+                preIssue.pop();
+            }
+
+            if (isLoadStore(instructionList, validInstructions[i])) {
+                alu1.push(validInstructions[i]);
+            } else {
+                alu2.push(validInstructions[i]);
+            }
+        }
+        while(!temp.empty()) {
+            preIssue.push(temp.front());
+            temp.pop();
         }
     }
 
     bool openALU(std::queue<int> preALU) {
         return preALU.size() < 3;
     }
-    bool isLoadorStore(std::vector<std::unique_ptr<Instruction>> &instructionList, int currentinst) {
+    bool isLoadStore(std::vector<std::unique_ptr<Instruction>> &instructionList, int currentinst) {
         unsigned long code = (std::bitset<7>(instructionList[currentinst]->opCode.to_ulong()) << 2 | std::bitset<7>(instructionList[currentinst]->catCode.to_ulong())).to_ulong();
         return  code == 15 || code == 22;
     }
-    bool RAW(std::vector<std::unique_ptr<Instruction>> &instructionList, int currentinst) {
-        std::vector<unsigned int> effectedRegisters = instructionList[currentinst]->getRegisters();
-        switch (effectedRegisters[0]) {
-            case 1:
-                for (int i = 0; i < 32; ++i) {
-                    if (destinationRegisters[i] == effectedRegisters[1] || destinationRegisters[i] == effectedRegisters[2]) {
-                        return true;
-                    }
-                }
-                break;
-            case 2:
-                for (int i = 0; i < 32; ++i) {
-                    if (destinationRegisters[i] == effectedRegisters[1] || destinationRegisters[i] == effectedRegisters[2]) {
-                        return true;
-                    }
-                }
-                break;
-            case 3:
-                for (int i = 0; i < 32; ++i) {
-                    if (destinationRegisters[i] == effectedRegisters[1]) {
-                        return true;
-                    }
-                }
-                break;
-            case 4:
-                break;
-        }
-        return false;
-    }
-    bool WAW(std::vector<std::unique_ptr<Instruction>> &instructionList, int currentinst) {
-        std::vector<unsigned int> effectedRegisters = instructionList[currentinst]->getRegisters();
-        switch (effectedRegisters[0]) {
-            case 1:
-                break;
-            case 2:
-                for (int i = 0; i < 32; ++i) {
-                    if (destinationRegisters[i] == effectedRegisters[3]) {
-                        return true;
-                    }
-                }
-                break;
-            case 3:
-                for (int i = 0; i < 32; ++i) {
-                    if (destinationRegisters[i] == effectedRegisters[2]) {
-                        return true;
-                    }
-                }
-                break;
-            case 4:
-                for (int i = 0; i < 32; ++i) {
-                    if (destinationRegisters[i] == effectedRegisters[1]) {
-                        return true;
-                    }
-                }
-                break;
-        }
-        return false;
-    }
-    bool WAR(std::vector<std::unique_ptr<Instruction>> &instructionList, int currentinst) {
-        std::vector<unsigned int> effectedRegisters = instructionList[currentinst]->getRegisters();
-        switch (effectedRegisters[0]) {
-            case 1:
-                break;
-            case 2:
-                for (int i = 0; i < 32; ++i) {
-                    if (sourceRegisters[i] == effectedRegisters[3]) {
-                        return true;
-                    }
-                }
-                break;
-            case 3:
-                for (int i = 0; i < 32; ++i) {
-                    if (sourceRegisters[i] == effectedRegisters[2]) {
-                        return true;
-                    }
-                }
-                break;
-            case 4:
-                for (int i = 0; i < 32; ++i) {
-                    if (sourceRegisters[i] == effectedRegisters[1]) {
-                        return true;
-                    }
-                }
-                break;
-        }
-        return false;
+    bool isStore(std::vector<std::unique_ptr<Instruction>> &instructionList, int currentinst) {
+        unsigned long code = (std::bitset<7>(instructionList[currentinst]->opCode.to_ulong()) << 2 | std::bitset<7>(instructionList[currentinst]->catCode.to_ulong())).to_ulong();
+        return  code == 15;
     }
     bool instructionsIndependent(std::vector<std::unique_ptr<Instruction>> &instructionList, int currentinst1, int currentinst2) {
         std::vector<unsigned int> effectedRegisters1 = instructionList[currentinst1]->getRegisters();
@@ -1060,6 +1115,7 @@ int main(int argc, char *argv[]) {
     loadData(breakAddress, codes);
 
     IF instructionDecoder;
+    issue issuer;
     std::queue<int> preIssue;
     std::queue<int> preALU1;
     std::queue<int> preALU2;
@@ -1082,26 +1138,18 @@ int main(int argc, char *argv[]) {
         Result[i] = -1;  // -1 means the register is not currently being written by any FU
     }
 
+    issuer.cycle(instructionList, preIssue, preALU1, preALU2);
     instructionDecoder.cycle(instructionList, preIssue);
     std::cout << instructionDecoder.IFtoString(instructionList);
     std::cout << writePREISSUEQ(preIssue, instructionList);
+    std::cout << writePREALU1(preALU1, instructionList);
+    std::cout << writePREALU2(preALU2, instructionList) << std::endl <<  std::endl;
+    issuer.cycle(instructionList, preIssue, preALU1, preALU2);
     instructionDecoder.cycle(instructionList, preIssue);
     std::cout << instructionDecoder.IFtoString(instructionList);
     std::cout << writePREISSUEQ(preIssue, instructionList);
-    instructionDecoder.cycle(instructionList, preIssue);
-    std::cout << instructionDecoder.IFtoString(instructionList);
-    std::cout << writePREISSUEQ(preIssue, instructionList);
-    flaggedRegisters[1] = false;
-    flaggedRegisters[2] = false;
-    instructionDecoder.cycle(instructionList, preIssue);
-    std::cout << instructionDecoder.IFtoString(instructionList);
-    std::cout << writePREISSUEQ(preIssue, instructionList);
-    instructionDecoder.cycle(instructionList, preIssue);
-    std::cout << instructionDecoder.IFtoString(instructionList);
-    std::cout << writePREISSUEQ(preIssue, instructionList);
-    instructionDecoder.cycle(instructionList, preIssue);
-    std::cout << instructionDecoder.IFtoString(instructionList);
-    std::cout << writePREISSUEQ(preIssue, instructionList);
+    std::cout << writePREALU1(preALU1, instructionList);
+    std::cout << writePREALU2(preALU2, instructionList) << std::endl <<  std::endl;
 
     //writeDisassembly(OUTPUTDISASSEMBLY, getDisassembly(codes, instructionList));
     //writeSim(OUTPUTSIMULATION, simulateInstructions(instructionList));
