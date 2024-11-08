@@ -459,7 +459,7 @@ bool checkScoreboard(std::vector<std::unique_ptr<Instruction>> &instructionList,
     if (instructionList[inst1]->getRegisters()[0] == 1 ? false : Result[instructionList[inst1]->getRegisters().back()] != -1) {
         return false;
     }
-    if (instructionList[inst1]->getRegisters()[0] > 2 ? false : Result[instructionList[inst1]->getRegisters()[2]] != -1 || instructionList[inst1]->getRegisters()[0] == 4 ? false : Result[instructionList[inst1]->getRegisters()[1]] != -1) {
+    if ((instructionList[inst1]->getRegisters()[0] > 2 ? false : Result[instructionList[inst1]->getRegisters()[2]] != -1) || (instructionList[inst1]->getRegisters()[0] == 4 ? false : Result[instructionList[inst1]->getRegisters()[1]] != -1)) {
         return false;
     }
     return true;
@@ -868,7 +868,7 @@ struct issue {
                         return false;
                     }
                     for (int i = 1; i < instructionList[inst2]->getRegisters().size()-1; ++i){
-                        if (instructionList[inst1]->getRegisters().back() == instructionList[inst2]->getRegisters()[i]) {
+                        if (instructionList[inst2]->getRegisters().back() == instructionList[inst1]->getRegisters()[i]) {
                             return false;
                         }
                     }
@@ -1004,15 +1004,21 @@ struct issue {
     void cycle(std::vector<std::unique_ptr<Instruction>> &instructionList, std::queue<int> &preIssue, std::queue<int>& alu1, std::queue<int>& alu2) {
         std::vector<int> validInstructions = findValidInstructions(instructionList, preIssue, alu1, alu2);
         std::queue<int> temp;
+        while(!preIssue.empty()) {
+            for (int i = 0; i < validInstructions.size(); ++i) {
+                if (preIssue.front() == validInstructions[i]) {
+                    preIssue.pop();
+                }
+            }
+            if (preIssue.empty()) {
+                break;
+            }
+            temp.push(preIssue.front());
+            preIssue.pop();
+        }
         for (int i = 0; i < validInstructions.size(); ++i) {
             if (!issueInst(instructionList, validInstructions[i], isLoadStore(instructionList, validInstructions[i]) ? 1 : 2)) {
                 std::cout << "cycle error";
-            }
-            while(!preIssue.empty()) {
-                if (preIssue.front() != validInstructions[i]) {
-                    temp.push(preIssue.front());
-                }
-                preIssue.pop();
             }
 
             if (isLoadStore(instructionList, validInstructions[i])) {
@@ -1065,7 +1071,6 @@ struct WriteBack {
         }
         int inst = postALU.front();
         instructionList[inst]->preformOperation();
-        unIssueInst(instructionList, inst, 0);
         postALU.pop();
         return inst;
     }
@@ -1136,9 +1141,11 @@ int main(int argc, char *argv[]) {
         std::cout << getDataMapStr(instructionList.back()->address) << std::endl;
         if (inst1 != -1) {
             instructionList[inst1]->unflagRegisters();
+            unIssueInst(instructionList, inst1, 0);
         }
         if (inst2 != -1) {
             instructionList[inst2]->unflagRegisters();
+            unIssueInst(instructionList, inst2, 0);
         }
         breakFound = instructionDecoder.nextInstructionBreak(instructionList, (pc-256)/4);
         cycleNum++;
