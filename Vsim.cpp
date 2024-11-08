@@ -600,12 +600,6 @@ struct IF
             return;
         }
 
-        if (nextInstructionBreak(instructionList, (pc-256)/4)) {
-            waiting = -1;
-            executing = (pc-256)/4;
-            throw std::runtime_error("break");
-        }
-
         if (nextInstructionJAL(instructionList, executing)) {
             executing = -1;
         }
@@ -622,6 +616,11 @@ struct IF
                 waiting = -1;
             }
             return;
+        }
+        if (nextInstructionBreak(instructionList, (pc-256)/4)) {
+            waiting = -1;
+            executing = (pc-256)/4;
+            throw std::runtime_error("break");
         }
 
         instr1 = (pc-256)/4;
@@ -645,7 +644,6 @@ struct IF
                 executing = instr2;
                 pc = pc - 4;
                 instructionList[executing]->preformOperation();
-                std::cout << std::endl << pc << std::endl;
             } else {
                 waiting = instr2;
                 stalled = true;
@@ -672,9 +670,6 @@ struct IF
             return false;
         }
         unsigned long code = (std::bitset<7>(instructionList[currentpc]->opCode.to_ulong()) << 2 | std::bitset<7>(instructionList[currentpc]->catCode.to_ulong())).to_ulong();
-        if (code == 0) {
-            std::cout << std::endl << std::endl << pc;
-        }
         return code == 0;
     }
     bool nextInstructionBreak(std::vector<std::unique_ptr<Instruction>> &instructionList, int currentpc) {
@@ -1205,15 +1200,10 @@ int main(int argc, char *argv[]) {
             instructionList[inst1]->unflagRegisters();
             unIssueInst(instructionList, inst1, 0);
         }
-        // if (inst2 != -1) {
-        //     instructionList[inst2]->unflagRegisters();
-        //     unIssueInst(instructionList, inst2, 3);
-        // }
         if (inst3 != -1) {
             instructionList[inst3]->unflagRegisters();
             unIssueInst(instructionList, inst3, 3);
         }
-        breakFound = instructionDecoder.nextInstructionBreak(instructionList, (pc-256)/4);
         cycleNum++;
         }
     } 
