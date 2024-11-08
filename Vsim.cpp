@@ -434,7 +434,7 @@ struct LW : public Category3 {
 struct JAL : public Category4 {
     JAL(const std::bitset<32>& instCode, const uint32_t& ad) : Category4(instCode.to_ullong(), ad) {}
     void preformOperation() const override {
-        registers[this->rd.to_ullong()] = pc + 4;
+        registers[this->rd.to_ullong()] = pc;
         pc = pc + (twoComplement(this->imm) << 1);
     }
     std::string instructionToString() const override {
@@ -600,7 +600,11 @@ struct IF
             return;
         }
 
-        if (nextInstructionBranch(instructionList, executing)) {
+        if (nextInstructionBreak(instructionList, (pc-256)/4)) {
+            throw std::runtime_error("break");
+        }
+
+        if (nextInstructionBranch(instructionList, executing) && !nextInstructionJAL(instructionList, executing)) {
             instructionList[executing]->preformOperation();
             executing = -1;
         }
@@ -627,12 +631,23 @@ struct IF
         if (nextInstructionBranch(instructionList, instr1)) {
             instr2 = -1;
             pc = pc - 4;
-            waiting = instr1;
-            stalled = true;
+            if (nextInstructionJAL(instructionList, instr1)) {
+                executing = instr1;
+                instructionList[executing]->preformOperation();
+            } else {
+                waiting = instr1;
+                stalled = true;
+            }
         }
         if (nextInstructionBranch(instructionList, instr2)) {
-            waiting = instr2;
-            stalled = true;
+            if (nextInstructionJAL(instructionList, instr2)) {
+                executing = instr2;
+                instructionList[executing]->preformOperation();
+                std::cout << std::endl << pc << std::endl;
+            } else {
+                waiting = instr2;
+                stalled = true;
+            }
         }
     }
     bool nextBranchUsesFlagged(std::vector<std::unique_ptr<Instruction>> &instructionList, int currentpc) {
@@ -649,6 +664,16 @@ struct IF
         }
         unsigned long code = (std::bitset<7>(instructionList[currentpc]->opCode.to_ulong()) << 2 | std::bitset<7>(instructionList[currentpc]->catCode.to_ulong())).to_ulong();
         return code == 3 || code == 7 || code == 11 || code == 0;
+    }
+    bool nextInstructionJAL(std::vector<std::unique_ptr<Instruction>> &instructionList, int currentpc) {
+        if (currentpc < 0) {
+            return false;
+        }
+        unsigned long code = (std::bitset<7>(instructionList[currentpc]->opCode.to_ulong()) << 2 | std::bitset<7>(instructionList[currentpc]->catCode.to_ulong())).to_ulong();
+        if (code == 0) {
+            std::cout << std::endl << std::endl << pc;
+        }
+        return code == 0;
     }
     bool nextInstructionBreak(std::vector<std::unique_ptr<Instruction>> &instructionList, int currentpc) {
         unsigned long code = (std::bitset<7>(instructionList[currentpc]->opCode.to_ulong()) << 2 | std::bitset<7>(instructionList[currentpc]->catCode.to_ulong())).to_ulong();
@@ -827,6 +852,19 @@ bool unIssueInst(std::vector<std::unique_ptr<Instruction>> &instructionList, int
     return false;
 }
 struct issue {
+    bool checkMem(std::vector<std::unique_ptr<Instruction>> &instructionList, int inst) {
+        for (int i = 1; i < instructionList[inst]->getRegisters().size()-1; ++i) {
+            if (Fi[1] == instructionList[inst]->getRegisters()[i]) {
+                return false;
+            }
+        }
+        for (int i = 1; i < instructionList[inst]->getRegisters().size()-1; ++i) {
+            if (Fi[3] == instructionList[inst]->getRegisters()[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
     bool checkWAWorWAR(std::vector<std::unique_ptr<Instruction>> &instructionList, int inst1, int inst2) {
         if (instructionList[inst1]->getRegisters()[0] != 1 && instructionList[inst2]->getRegisters()[0] != 1) {
             return true;
@@ -868,6 +906,11 @@ struct issue {
                         return false;
                     }
                     for (int i = 1; i < instructionList[inst2]->getRegisters().size()-1; ++i){
+                        if (instructionList[inst1]->getRegisters().back() == instructionList[inst2]->getRegisters()[i]) {
+                            return false;
+                        }
+                    }
+                    for (int i = 1; i < instructionList[inst1]->getRegisters().size()-1; ++i){
                         if (instructionList[inst2]->getRegisters().back() == instructionList[inst1]->getRegisters()[i]) {
                             return false;
                         }
@@ -909,6 +952,9 @@ struct issue {
             return false;
         }
         if (inst1 != -1 && isLoadStore(instructionList, inst0) == isLoadStore(instructionList, inst1)) {
+            return false;
+        }
+        if (!checkMem(instructionList, inst0)) {
             return false;
         }
         if (isLoadStore(instructionList, inst0)) {
@@ -1065,6 +1111,17 @@ struct ALU {
 };
 
 struct WriteBack {
+    int cycle(std::vector<std::unique_ptr<Instruction>> &instructionList, std::queue<int> &postMem) {
+        if (postMem.empty()) {
+            return -1;
+        }
+        int inst = postMem.front();
+        instructionList[inst]->preformOperation();
+        postMem.pop();
+        return inst;
+    }
+};
+struct postMemQ {
     int cycle(std::vector<std::unique_ptr<Instruction>> &instructionList, std::queue<int> &postALU) {
         if (postALU.empty()) {
             return -1;
@@ -1072,6 +1129,15 @@ struct WriteBack {
         int inst = postALU.front();
         instructionList[inst]->preformOperation();
         postALU.pop();
+        return inst;
+    }
+    int cycle(std::vector<std::unique_ptr<Instruction>> &instructionList, std::queue<int> &preALU, std::queue<int> &postALU) {
+        if (preALU.empty()) {
+            return -1;
+        }
+        int inst = preALU.front();
+        postALU.push(inst);
+        preALU.pop();
         return inst;
     }
 };
@@ -1097,6 +1163,7 @@ int main(int argc, char *argv[]) {
     ALU alu1(1);
     ALU alu2(2);
     WriteBack wb;
+    postMemQ mem;
 
     std::queue<int> preIssue;
     std::queue<int> preALU1;
@@ -1117,17 +1184,19 @@ int main(int argc, char *argv[]) {
         Rk[i] = false;
     }
     for (int i = 0; i < 32; i++) {
-        Result[i] = -1;  // -1 means the register is not currently being written by any FU
+        Result[i] = -1;
     }
 
     bool breakFound = false;
     int cycleNum = 1;
-    while (!breakFound && cycleNum < 20) {
+    try {
+        while (!breakFound && cycleNum < 25) {
         std::cout << "--------------------\nCycle " << cycleNum << ":\n\n";
+        int inst3 = wb.cycle(instructionList, postMem);
         int inst1 = wb.cycle(instructionList, postALU2);
-        int inst2 = wb.cycle(instructionList, postMem);
+        int inst2 = mem.cycle(instructionList, preMem, postMem);
         alu2.cycle(instructionList, preALU2, postALU2);
-        alu1.cycle(instructionList, preALU1, postMem);
+        alu1.cycle(instructionList, preALU1, preMem);
         issuer.cycle(instructionList, preIssue, preALU1, preALU2);
         instructionDecoder.cycle(instructionList, preIssue);
         std::cout << instructionDecoder.IFtoString(instructionList);
@@ -1145,10 +1214,27 @@ int main(int argc, char *argv[]) {
         }
         if (inst2 != -1) {
             instructionList[inst2]->unflagRegisters();
-            unIssueInst(instructionList, inst2, 0);
+            unIssueInst(instructionList, inst2, 3);
+        }
+        if (inst3 != -1) {
+            instructionList[inst3]->unflagRegisters();
+            unIssueInst(instructionList, inst3, 3);
         }
         breakFound = instructionDecoder.nextInstructionBreak(instructionList, (pc-256)/4);
         cycleNum++;
+        }
+    } 
+    catch(std::runtime_error) {
+        std::cout << "--------------------\nCycle " << ++cycleNum << ":\n\n";
+        std::cout << instructionDecoder.IFtoString(instructionList);
+        std::cout << writePREISSUEQ(preIssue, instructionList);
+        std::cout << writePREALU1(preALU1, instructionList);
+        std::cout << writePreMemQueue(preMem, instructionList);
+        std::cout << writePostMemQueue(postMem, instructionList);
+        std::cout << writePREALU2(preALU2, instructionList);
+        std::cout << writePostALU2(postALU2, instructionList) << std::endl << std::endl;
+        std::cout << getRegistersStr() << std::endl << std::endl;
+        std::cout << getDataMapStr(instructionList.back()->address) << std::endl;
     }
 
     //writeDisassembly(OUTPUTDISASSEMBLY, getDisassembly(codes, instructionList));

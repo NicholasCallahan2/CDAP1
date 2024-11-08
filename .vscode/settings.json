@@ -1,9 +1,9 @@
 {
     "files.associations": {
-        "bitset": "cpp",
         "algorithm": "cpp",
         "atomic": "cpp",
         "bit": "cpp",
+        "bitset": "cpp",
         "cctype": "cpp",
         "clocale": "cpp",
         "cmath": "cpp",
@@ -26,10 +26,12 @@
         "istream": "cpp",
         "iterator": "cpp",
         "limits": "cpp",
+        "list": "cpp",
         "memory": "cpp",
         "new": "cpp",
         "ostream": "cpp",
         "queue": "cpp",
+        "sstream": "cpp",
         "stdexcept": "cpp",
         "streambuf": "cpp",
         "string": "cpp",
@@ -37,9 +39,11 @@
         "tuple": "cpp",
         "type_traits": "cpp",
         "typeinfo": "cpp",
+        "unordered_map": "cpp",
         "utility": "cpp",
         "vector": "cpp",
         "xfacet": "cpp",
+        "xhash": "cpp",
         "xiosbase": "cpp",
         "xlocale": "cpp",
         "xlocinfo": "cpp",
@@ -48,12 +52,6 @@
         "xstddef": "cpp",
         "xstring": "cpp",
         "xtr1common": "cpp",
-        "xutility": "cpp",
-        "sstream": "cpp",
-        "unordered_map": "cpp",
-        "list": "cpp",
-        "map": "cpp",
-        "xhash": "cpp",
-        "xtree": "cpp"
+        "xutility": "cpp"
     }
 }
