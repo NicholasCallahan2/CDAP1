@@ -601,17 +601,18 @@ struct IF
         }
 
         if (nextInstructionBreak(instructionList, (pc-256)/4)) {
+            waiting = -1;
+            executing = (pc-256)/4;
             throw std::runtime_error("break");
+        }
+
+        if (nextInstructionJAL(instructionList, executing)) {
+            executing = -1;
         }
 
         if (nextInstructionBranch(instructionList, executing) && !nextInstructionJAL(instructionList, executing)) {
             instructionList[executing]->preformOperation();
             executing = -1;
-        }
-
-        if (nextInstructionBreak(instructionList, (pc-256)/4)) {
-            executing = (pc-256)/4;
-            return;
         }
 
         if (stalled) {
@@ -642,6 +643,7 @@ struct IF
         if (nextInstructionBranch(instructionList, instr2)) {
             if (nextInstructionJAL(instructionList, instr2)) {
                 executing = instr2;
+                pc = pc - 4;
                 instructionList[executing]->preformOperation();
                 std::cout << std::endl << pc << std::endl;
             } else {
@@ -1122,15 +1124,6 @@ struct WriteBack {
     }
 };
 struct postMemQ {
-    int cycle(std::vector<std::unique_ptr<Instruction>> &instructionList, std::queue<int> &postALU) {
-        if (postALU.empty()) {
-            return -1;
-        }
-        int inst = postALU.front();
-        instructionList[inst]->preformOperation();
-        postALU.pop();
-        return inst;
-    }
     int cycle(std::vector<std::unique_ptr<Instruction>> &instructionList, std::queue<int> &preALU, std::queue<int> &postALU) {
         if (preALU.empty()) {
             return -1;
@@ -1190,7 +1183,7 @@ int main(int argc, char *argv[]) {
     bool breakFound = false;
     int cycleNum = 1;
     try {
-        while (!breakFound && cycleNum < 25) {
+        while (!breakFound) {
         std::cout << "--------------------\nCycle " << cycleNum << ":\n\n";
         int inst3 = wb.cycle(instructionList, postMem);
         int inst1 = wb.cycle(instructionList, postALU2);
@@ -1212,10 +1205,10 @@ int main(int argc, char *argv[]) {
             instructionList[inst1]->unflagRegisters();
             unIssueInst(instructionList, inst1, 0);
         }
-        if (inst2 != -1) {
-            instructionList[inst2]->unflagRegisters();
-            unIssueInst(instructionList, inst2, 3);
-        }
+        // if (inst2 != -1) {
+        //     instructionList[inst2]->unflagRegisters();
+        //     unIssueInst(instructionList, inst2, 3);
+        // }
         if (inst3 != -1) {
             instructionList[inst3]->unflagRegisters();
             unIssueInst(instructionList, inst3, 3);
