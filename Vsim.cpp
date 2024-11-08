@@ -599,10 +599,7 @@ struct IF
         if (preIssueFull) {
             return;
         }
-        // std::cout << "Branch " << nextInstructionBranch(instructionList, executing) << std::endl;
-        // std::cout << "stalled " << stalled << std::endl;
-        // std::cout << "Executing "<< executing << std::endl;
-        // std::cout << "Waiting "<< waiting << std::endl << std::endl;
+
         if (nextInstructionBranch(instructionList, executing)) {
             instructionList[executing]->preformOperation();
             executing = -1;
@@ -625,14 +622,15 @@ struct IF
         instr1 = (pc-256)/4;
         pc = pc + 4;
         instr2 = (pc-256)/4;
+        pc = pc + 4;
 
         if (nextInstructionBranch(instructionList, instr1)) {
             instr2 = -1;
+            pc = pc - 4;
             waiting = instr1;
             stalled = true;
         }
         if (nextInstructionBranch(instructionList, instr2)) {
-            instr1 = -1;
             waiting = instr2;
             stalled = true;
         }
@@ -1061,15 +1059,15 @@ struct ALU {
 };
 
 struct WriteBack {
-    void cycle(std::vector<std::unique_ptr<Instruction>> &instructionList, std::queue<int> &postALU) {
+    int cycle(std::vector<std::unique_ptr<Instruction>> &instructionList, std::queue<int> &postALU) {
         if (postALU.empty()) {
-            return;
+            return -1;
         }
-        
-        instructionList[postALU.front()]->preformOperation();
-        unIssueInst(instructionList, postALU.front(), 0);
-        instructionList[postALU.front()]->unflagRegisters();
+        int inst = postALU.front();
+        instructionList[inst]->preformOperation();
+        unIssueInst(instructionList, inst, 0);
         postALU.pop();
+        return inst;
     }
 };
 
@@ -1119,10 +1117,10 @@ int main(int argc, char *argv[]) {
 
     bool breakFound = false;
     int cycleNum = 1;
-    while (!breakFound) {
+    while (!breakFound && cycleNum < 20) {
         std::cout << "--------------------\nCycle " << cycleNum << ":\n\n";
-        wb.cycle(instructionList, postALU2);
-        wb.cycle(instructionList, postMem);
+        int inst1 = wb.cycle(instructionList, postALU2);
+        int inst2 = wb.cycle(instructionList, postMem);
         alu2.cycle(instructionList, preALU2, postALU2);
         alu1.cycle(instructionList, preALU1, postMem);
         issuer.cycle(instructionList, preIssue, preALU1, preALU2);
@@ -1136,6 +1134,12 @@ int main(int argc, char *argv[]) {
         std::cout << writePostALU2(postALU2, instructionList) << std::endl << std::endl;
         std::cout << getRegistersStr() << std::endl << std::endl;
         std::cout << getDataMapStr(instructionList.back()->address) << std::endl;
+        if (inst1 != -1) {
+            instructionList[inst1]->unflagRegisters();
+        }
+        if (inst2 != -1) {
+            instructionList[inst2]->unflagRegisters();
+        }
         breakFound = instructionDecoder.nextInstructionBreak(instructionList, (pc-256)/4);
         cycleNum++;
     }
