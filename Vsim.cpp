@@ -18,22 +18,22 @@
 #include <memory>
 #include <queue>
 #include <utility>
-#include "Vsim.h"
+#include <stdexcept>
 
 uint32_t registers[32];
 bool flaggedRegisters[32] = {};
 int32_t pc = 256;
 std::unordered_map<int32_t, int32_t> dataMap;
 
-bool Busy[4];       // Busy status of functional units
-int Op[4];          // Operation assigned to each functional unit
-int Fi[4];          // Destination register for each functional unit
-int Fj[4];          // First source register
-int Fk[4];          // Second source register
-int Qj[4];          // Producer of the first source register
-int Qk[4];          // Producer of the second source register
-bool Rj[4];         // Ready status of the first source register (1 if ready, 0 if not)
-bool Rk[4];         // Ready status of the second source register (1 if ready, 0 if not)
+bool Busy[4];
+int Op[4];
+int Fi[4];
+int Fj[4];
+int Fk[4];
+int Qj[4];
+int Qk[4];
+bool Rj[4];
+bool Rk[4];
 int Result[32];
 
 template <std::size_t N1, std::size_t N2>
@@ -270,7 +270,7 @@ struct BEQ : public Category1 {
     }
     std::string instructionToString() const override {
         std::stringstream str;
-        str << this->address << "\tbeq x" << twoComplement(this->s1.to_ullong()) << ", x" << twoComplement(this->s2.to_ullong()) << ", #" << twoComplement(this->imm1.to_ullong()) << std::endl;
+        str << "[beq x" << twoComplement(this->s1.to_ullong()) << ", x" << twoComplement(this->s2.to_ullong()) << ", #" << twoComplement(this->imm1.to_ullong()) << "]";
         return str.str();
     }
 };
@@ -283,7 +283,7 @@ struct BNE : public Category1 {
     }
     std::string instructionToString() const override {
         std::stringstream str;
-        str << this->address << "\tbne x" << twoComplement(this->s1.to_ullong()) << ", x" << twoComplement(this->s2.to_ullong()) << ", #" << twoComplement(this->imm1.to_ullong()) << std::endl;
+        str << "[bne x" << twoComplement(this->s1.to_ullong()) << ", x" << twoComplement(this->s2.to_ullong()) << ", #" << twoComplement(this->imm1.to_ullong()) << "]";
         return str.str();
     }
 };
@@ -299,7 +299,7 @@ struct BLT : public Category1 {
     }
     std::string instructionToString() const override {
         std::stringstream str;
-        str << this->address << "\tblt x" << twoComplement(this->s1.to_ullong()) << ", x" << twoComplement(this->s2.to_ullong()) << ", #" << twoComplement(this->imm1.to_ullong()) << std::endl;
+        str << "[blt x" << twoComplement(this->s1.to_ullong()) << ", x" << twoComplement(this->s2.to_ullong()) << ", #" << twoComplement(this->imm1.to_ullong()) << "]";
         return str.str();
     }
 };
@@ -314,7 +314,7 @@ struct SW : public Category1 {
     }
     std::string instructionToString() const override {
         std::stringstream str;
-        str << this->address << "\tsw x" << twoComplement(this->s1.to_ullong()) << ", " << this->immV << "(x" << twoComplement(this->s2.to_ullong()) << ")" << std::endl;
+        str << "[sw x" << twoComplement(this->s1.to_ullong()) << ", " << this->immV << "(x" << twoComplement(this->s2.to_ullong()) << ")" << "]";
         return str.str();
     }
 };
@@ -326,7 +326,7 @@ struct ADD : public Category2 {
     }
     std::string instructionToString() const override {
         std::stringstream str;
-        str << this->address << "\tadd x" << twoComplement(this->rd.to_ullong()) << ", x" << twoComplement(this->s1.to_ullong()) << ", x" << twoComplement(this->s2.to_ullong()) << std::endl;
+        str << "[add x" << twoComplement(this->rd.to_ullong()) << ", x" << twoComplement(this->s1.to_ullong()) << ", x" << twoComplement(this->s2.to_ullong()) << "]";
         return str.str();
     }
 };
@@ -337,7 +337,7 @@ struct SUB : public Category2 {
     }
     std::string instructionToString() const override {
         std::stringstream str;
-        str << this->address << "\tsub x" << twoComplement(this->rd.to_ullong()) << ", x" << twoComplement(this->s1.to_ullong()) << ", x" << twoComplement(this->s2.to_ullong()) << std::endl;
+        str << "[sub x" << twoComplement(this->rd.to_ullong()) << ", x" << twoComplement(this->s1.to_ullong()) << ", x" << twoComplement(this->s2.to_ullong()) << "]";
         return str.str();
     }
 };
@@ -348,7 +348,7 @@ struct AND : public Category2 {
     }
     std::string instructionToString() const override {
         std::stringstream str;
-        str << this->address << "\tand x" << twoComplement(this->rd.to_ullong()) << ", x" << twoComplement(this->s1.to_ullong()) << ", x" << twoComplement(this->s2.to_ullong()) << std::endl;
+        str << "[and x" << twoComplement(this->rd.to_ullong()) << ", x" << twoComplement(this->s1.to_ullong()) << ", x" << twoComplement(this->s2.to_ullong()) << "]";
         return str.str();
     }
 };
@@ -359,7 +359,7 @@ struct OR : public Category2 {
     }
     std::string instructionToString() const override {
         std::stringstream str;
-        str << this->address << "\tor x" << twoComplement(this->rd.to_ullong()) << ", x" << twoComplement(this->s1.to_ullong()) << ", x" << twoComplement(this->s2.to_ullong()) << std::endl;
+        str << "[or x" << twoComplement(this->rd.to_ullong()) << ", x" << twoComplement(this->s1.to_ullong()) << ", x" << twoComplement(this->s2.to_ullong()) << "]";
         return str.str();
     }
 };
@@ -371,7 +371,7 @@ struct ADDI : public Category3 {
     }
     std::string instructionToString() const override {
         std::stringstream str;
-        str << this->address << "\taddi x" << twoComplement(this->rd.to_ullong()) << ", x" << twoComplement(this->s1.to_ullong()) << ", #" << twoComplement(this->imm) << std::endl;
+        str << "[addi x" << twoComplement(this->rd.to_ullong()) << ", x" << twoComplement(this->s1.to_ullong()) << ", #" << twoComplement(this->imm) << "]";
         return str.str();
     }
 };
@@ -382,7 +382,7 @@ struct ANDI : public Category3 {
     }
     std::string instructionToString() const override {
         std::stringstream str;
-        str << this->address << "\tandi x" << twoComplement(this->rd.to_ullong()) << ", x"<< twoComplement(this->s1.to_ullong()) << ", #" << twoComplement(this->imm.to_ullong()) << std::endl;
+        str << "[andi x" << twoComplement(this->rd.to_ullong()) << ", x"<< twoComplement(this->s1.to_ullong()) << ", #" << twoComplement(this->imm.to_ullong()) << "]";
         return str.str();
     }
 };
@@ -393,7 +393,7 @@ struct ORI : public Category3 {
     }
     std::string instructionToString() const override {
         std::stringstream str;
-        str << this->address << "\tori x" << twoComplement(this->s1.to_ullong()) << ", #" << twoComplement(this->imm.to_ullong()) << std::endl;
+        str << "[ori x" << twoComplement(this->s1.to_ullong()) << ", #" << twoComplement(this->imm.to_ullong()) << "]";
         return str.str();
     }
 };
@@ -404,7 +404,7 @@ struct SLL : public Category3 {
     }
     std::string instructionToString() const override {
         std::stringstream str;
-        str << this->address << "\tsll x" << twoComplement(this->rd.to_ullong()) << ", x" << twoComplement(this->s1.to_ullong()) << ", #" << twoComplement(this->imm.to_ullong()) << std::endl;
+        str << "[sll x" << twoComplement(this->rd.to_ullong()) << ", x" << twoComplement(this->s1.to_ullong()) << ", #" << twoComplement(this->imm.to_ullong()) << "]";
         return str.str();
     }
 };
@@ -415,7 +415,7 @@ struct SRA : public Category3 {
     }
     std::string instructionToString() const override {
         std::stringstream str;
-        str << this->address << "\tsra x" << twoComplement(this->rd.to_ullong()) << ", x" << twoComplement(this->s1.to_ullong()) << ", #" << twoComplement(this->imm.to_ullong()) << std::endl;
+        str << "[sra x" << twoComplement(this->rd.to_ullong()) << ", x" << twoComplement(this->s1.to_ullong()) << ", #" << twoComplement(this->imm.to_ullong()) << "]";
         return str.str();
     }
 };
@@ -426,7 +426,7 @@ struct LW : public Category3 {
     }
     std::string instructionToString() const override {
         std::stringstream str;
-        str << this->address << "\tlw x" << twoComplement(this->rd.to_ullong()) << ", " << twoComplement(this->imm.to_ullong()) << "(x" << this->s1.to_ullong() << ")" << std::endl;
+        str << "[lw x" << twoComplement(this->rd.to_ullong()) << ", " << twoComplement(this->imm.to_ullong()) << "(x" << this->s1.to_ullong() << ")" << "]";
         return str.str();
     }
 };
@@ -439,7 +439,7 @@ struct JAL : public Category4 {
     }
     std::string instructionToString() const override {
         std::stringstream str;
-        str << this->address << "\tjal x" << twoComplement(this->rd.to_ullong()) << ", #" << twoComplement(this->imm) << std::endl;
+        str << "[jal x" << twoComplement(this->rd.to_ullong()) << ", #" << twoComplement(this->imm) << "]";
         return str.str();
     }
 };
@@ -450,10 +450,20 @@ struct BREAK : public Category4 {
     }
     std::string instructionToString() const override {
         std::stringstream str;
-        str << this->address << "\tbreak" << std::endl;
+        str << "[break" << "]";
         return str.str();
     }
 };
+
+bool checkScoreboard(std::vector<std::unique_ptr<Instruction>> &instructionList, int inst1) {
+    if (instructionList[inst1]->getRegisters()[0] == 1 ? false : Result[instructionList[inst1]->getRegisters().back()] != -1) {
+        return false;
+    }
+    if (instructionList[inst1]->getRegisters()[0] > 2 ? false : Result[instructionList[inst1]->getRegisters()[2]] != -1 || instructionList[inst1]->getRegisters()[0] == 4 ? false : Result[instructionList[inst1]->getRegisters()[1]] != -1) {
+        return false;
+    }
+    return true;
+}
 
 std::string simulateInstructions(std::vector<std::unique_ptr<Instruction>>& instructionList) {
     std::stringstream tableStr;
@@ -589,7 +599,10 @@ struct IF
         if (preIssueFull) {
             return;
         }
-
+        // std::cout << "Branch " << nextInstructionBranch(instructionList, executing) << std::endl;
+        // std::cout << "stalled " << stalled << std::endl;
+        // std::cout << "Executing "<< executing << std::endl;
+        // std::cout << "Waiting "<< waiting << std::endl << std::endl;
         if (nextInstructionBranch(instructionList, executing)) {
             instructionList[executing]->preformOperation();
             executing = -1;
@@ -669,13 +682,13 @@ struct IF
         std::stringstream outputstring;
         outputstring << "IF Unit:\n\tWaiting:";
         if (waiting != -1) {
-            outputstring << " " << instructionList[waiting]->instructionToString();
+            outputstring << " " << instructionList[waiting]->instructionToString() << std::endl;
         } else {
             outputstring << "\n";
         }
         outputstring << "\tExecuted:";
         if (executing != -1) {
-            outputstring << " " << instructionList[executing]->instructionToString();
+            outputstring << " " << instructionList[executing]->instructionToString() << std::endl;
         } else {
             outputstring << "\n";
         }
@@ -694,22 +707,22 @@ void readFlagged() {
 
 std::string writePREISSUEQ(std::queue<int> preIssue, std::vector<std::unique_ptr<Instruction>> &instructionList) {
     std::stringstream resultstr;
-    resultstr << "Pre-Issue Queue:\n\tEntry 0:";
+    resultstr << "Pre-Issue Queue:\n\tEntry 0: ";
     if (!preIssue.empty()) {
         resultstr << instructionList[preIssue.front()]->instructionToString();
         preIssue.pop();
     }
-    resultstr << "\n\tEntry 1:";
+    resultstr << "\n\tEntry 1: ";
     if (!preIssue.empty()) {
         resultstr << instructionList[preIssue.front()]->instructionToString();
         preIssue.pop();
     }
-    resultstr << "\n\tEntry 2:";
+    resultstr << "\n\tEntry 2: ";
     if (!preIssue.empty()) {
         resultstr << instructionList[preIssue.front()]->instructionToString();
         preIssue.pop();
     }
-    resultstr << "\n\tEntry 3:";
+    resultstr << "\n\tEntry 3: ";
     if (!preIssue.empty()) {
         resultstr << instructionList[preIssue.front()]->instructionToString();
         preIssue.pop();
@@ -718,12 +731,12 @@ std::string writePREISSUEQ(std::queue<int> preIssue, std::vector<std::unique_ptr
 }
 std::string writePREALU1(std::queue<int> alu1, std::vector<std::unique_ptr<Instruction>> &instructionList) {
     std::stringstream resultstr;
-    resultstr << "\nPre-ALU1 Queue:\n\tEntry 0:";
+    resultstr << "\nPre-ALU1 Queue:\n\tEntry 0: ";
     if (!alu1.empty()) {
         resultstr << instructionList[alu1.front()]->instructionToString();
         alu1.pop();
     }
-    resultstr << "\n\tEntry 1:";
+    resultstr << "\n\tEntry 1: ";
     if (!alu1.empty()) {
         resultstr << instructionList[alu1.front()]->instructionToString();
         alu1.pop();
@@ -732,12 +745,39 @@ std::string writePREALU1(std::queue<int> alu1, std::vector<std::unique_ptr<Instr
 }
 std::string writePREALU2(std::queue<int> alu2, std::vector<std::unique_ptr<Instruction>> &instructionList) {
     std::stringstream resultstr;
-    resultstr << "\nPre-ALU2 Queue:\n\tEntry 0:";
+    resultstr << "\nPre-ALU2 Queue:\n\tEntry 0: ";
     if (!alu2.empty()) {
         resultstr << instructionList[alu2.front()]->instructionToString();
         alu2.pop();
     }
-    resultstr << "\n\tEntry 1:";
+    resultstr << "\n\tEntry 1: ";
+    if (!alu2.empty()) {
+        resultstr << instructionList[alu2.front()]->instructionToString();
+        alu2.pop();
+    }
+    return resultstr.str();
+}
+std::string writePreMemQueue(std::queue<int> memQ, std::vector<std::unique_ptr<Instruction>> &instructionList) {
+    std::stringstream resultstr;
+    resultstr << "\nPre-MEM Queue: ";
+    if (!memQ.empty()) {
+        resultstr << instructionList[memQ.front()]->instructionToString();
+        memQ.pop();
+    }
+    return resultstr.str();
+}
+std::string writePostMemQueue(std::queue<int> memQ, std::vector<std::unique_ptr<Instruction>> &instructionList) {
+    std::stringstream resultstr;
+    resultstr << "\nPost-MEM Queue: ";
+    if (!memQ.empty()) {
+        resultstr << instructionList[memQ.front()]->instructionToString();
+        memQ.pop();
+    }
+    return resultstr.str();
+}
+std::string writePostALU2(std::queue<int> alu2, std::vector<std::unique_ptr<Instruction>> &instructionList) {
+    std::stringstream resultstr;
+    resultstr << "\nPost-ALU2 Queue: ";
     if (!alu2.empty()) {
         resultstr << instructionList[alu2.front()]->instructionToString();
         alu2.pop();
@@ -745,7 +785,7 @@ std::string writePREALU2(std::queue<int> alu2, std::vector<std::unique_ptr<Instr
     return resultstr.str();
 }
 bool issueInst(std::vector<std::unique_ptr<Instruction>> &instructionList, int inst, int FU) {
-    if (!Busy[FU] && instructionList[inst]->getRegisters()[0] == 1 ? true : Result[instructionList[inst]->getRegisters().back()] == -1) {  // Check if FU is available and no instruction writes to dst
+    if (!Busy[FU] && instructionList[inst]->getRegisters()[0] == 1 ? true : Result[instructionList[inst]->getRegisters().back()] == -1) {
         Busy[FU] = true;
         
         Op[FU] = instructionList[inst]->address;
@@ -766,16 +806,29 @@ bool issueInst(std::vector<std::unique_ptr<Instruction>> &instructionList, int i
     }
     return false;
 }
-struct issue {
-    bool checkScoreboard(std::vector<std::unique_ptr<Instruction>> &instructionList, int inst1, int FU) {
-        if (instructionList[inst1]->getRegisters()[0] == 1 ? false : Result[instructionList[inst1]->getRegisters().back()] != -1) {
-            return false;
-        }
-        if (instructionList[inst1]->getRegisters()[0] > 2 ? -1 : Result[instructionList[inst1]->getRegisters()[2]] != -1 || instructionList[inst1]->getRegisters()[0] == 4 ? -1 : Result[instructionList[inst1]->getRegisters()[1]] != -1) {
-            return false;
+bool unIssueInst(std::vector<std::unique_ptr<Instruction>> &instructionList, int inst, int FU) {
+    if (Busy[FU] || !(instructionList[inst]->getRegisters()[0] == 1 ? true : Result[instructionList[inst]->getRegisters().back()] == -1)) {
+        Busy[FU] = false;
+        
+        Op[FU] = -1;
+        Fi[FU] = -1;
+        Fj[FU] = -1;
+        Fk[FU] = -1;
+        
+        Qj[FU] = -1;
+        Qk[FU] = -1;
+        
+        Rj[FU] = (Qj[FU] == -1);
+        Rk[FU] = (Qk[FU] == -1);
+        
+        if (instructionList[inst]->getRegisters()[0] != 1){
+             Result[instructionList[inst]->getRegisters().back()] = -1;
         }
         return true;
     }
+    return false;
+}
+struct issue {
     bool checkWAWorWAR(std::vector<std::unique_ptr<Instruction>> &instructionList, int inst1, int inst2) {
         if (instructionList[inst1]->getRegisters()[0] != 1 && instructionList[inst2]->getRegisters()[0] != 1) {
             return true;
@@ -860,12 +913,11 @@ struct issue {
         if (inst1 != -1 && isLoadStore(instructionList, inst0) == isLoadStore(instructionList, inst1)) {
             return false;
         }
-
         if (isLoadStore(instructionList, inst0)) {
             if (!openALU(alu1)) {
                 return false;
             }
-            if (!checkScoreboard(instructionList, inst0, 1)) {
+            if (!checkScoreboard(instructionList, inst0)) {
                 return false;
             }
             return true;
@@ -873,7 +925,8 @@ struct issue {
             if (!openALU(alu2)) {
                 return false;
             }
-            if (!checkScoreboard(instructionList, inst0, 2)) {
+
+            if (!checkScoreboard(instructionList, inst0)) {
                 return false;
             }
             return true;
@@ -987,115 +1040,37 @@ struct issue {
         unsigned long code = (std::bitset<7>(instructionList[currentinst]->opCode.to_ulong()) << 2 | std::bitset<7>(instructionList[currentinst]->catCode.to_ulong())).to_ulong();
         return  code == 15;
     }
-    bool instructionsIndependent(std::vector<std::unique_ptr<Instruction>> &instructionList, int currentinst1, int currentinst2) {
-        std::vector<unsigned int> effectedRegisters1 = instructionList[currentinst1]->getRegisters();
-        std::vector<unsigned int> effectedRegisters2 = instructionList[currentinst2]->getRegisters();
-        switch(effectedRegisters1[0]) {
-            case 1: //s1 s2
-                if (effectedRegisters2[0] == 1) { //s1 s2
-                    return true;
-                }
-                if (effectedRegisters2[0] == 2) { //s1 s2 rd
-                    if (effectedRegisters2[3] == effectedRegisters1[1] || effectedRegisters2[3] == effectedRegisters1[2]) {
-                        return false;
-                    }
-                    return true;
-                }
-                if (effectedRegisters2[0] == 3) { //s1 rd
-                    if (effectedRegisters2[2] == effectedRegisters1[1] || effectedRegisters2[2] == effectedRegisters1[2]) {
-                        return false;
-                    }
-                    return true;
-                }
-                if (effectedRegisters2[0] == 4) { //rd
-                    if (effectedRegisters2[1] == effectedRegisters1[1] || effectedRegisters2[1] == effectedRegisters1[2]) {
-                        return false;
-                    }
-                    return true;
-                }
-                break;
-            case 2: //s1 s2 rd
-                if (effectedRegisters2[0] == 1) { //s1 s2
-                    if (effectedRegisters2[1] == effectedRegisters1[3] || effectedRegisters2[2] == effectedRegisters1[3]) {
-                        return false;
-                    }
-                    return true;
-                }
-                if (effectedRegisters2[0] == 2) { //s1 s2 rd
-                    if (effectedRegisters2[1] == effectedRegisters1[3] || effectedRegisters2[2] == effectedRegisters1[3] || effectedRegisters2[3] == effectedRegisters1[3] || effectedRegisters2[3] == effectedRegisters1[1] || effectedRegisters2[3] == effectedRegisters1[2]) {
-                        return false;
-                    }
-                    return true;
-                }
-                if (effectedRegisters2[0] == 3) { //s1 rd
-                    if (effectedRegisters2[1] == effectedRegisters1[3] || effectedRegisters2[2] == effectedRegisters1[3] || effectedRegisters2[2] == effectedRegisters1[1] || effectedRegisters2[2] == effectedRegisters1[2]) {
-                        return false;
-                    }
-                    return true;
-                }
-                if (effectedRegisters2[0] == 4) { //rd
-                    if (effectedRegisters2[1] == effectedRegisters1[3] || effectedRegisters2[1] == effectedRegisters1[1] || effectedRegisters2[1] == effectedRegisters1[2]) {
-                        return false;
-                    }
-                    return true;
-                }
-                break;
-            case 3: //s1 rd
-                if (effectedRegisters2[0] == 1) { //s1 s2
-                    if (effectedRegisters2[1] == effectedRegisters1[2] || effectedRegisters2[2] == effectedRegisters1[2]) {
-                        return false;
-                    }
-                    return true;
-                }
-                if (effectedRegisters2[0] == 2) { //s1 s2 rd
-                    if (effectedRegisters2[1] == effectedRegisters1[2] || effectedRegisters2[2] == effectedRegisters1[2] || effectedRegisters2[3] == effectedRegisters1[2] || effectedRegisters2[3] == effectedRegisters1[1]) {
-                        return false;
-                    }
-                    return true;
-                }
-                if (effectedRegisters2[0] == 3) { //s1 rd
-                    if (effectedRegisters2[1] == effectedRegisters1[2] || effectedRegisters2[2] == effectedRegisters1[2] || effectedRegisters2[2] == effectedRegisters1[1]) {
-                        return false;
-                    }
-                    return true;
-                }
-                if (effectedRegisters2[0] == 4) { //rd
-                    if (effectedRegisters2[1] == effectedRegisters1[2] || effectedRegisters2[1] == effectedRegisters1[1]) {
-                        return false;
-                    }
-                    return true;
-                }
-                break;
-            case 4: //rd
-                if (effectedRegisters2[0] == 1) { //s1 s2
-                    if (effectedRegisters2[1] == effectedRegisters1[1] || effectedRegisters2[2] == effectedRegisters1[1]) {
-                        return false;
-                    }
-                    return true;
-                }
-                if (effectedRegisters2[0] == 2) { //s1 s2 rd
-                    if (effectedRegisters2[1] == effectedRegisters1[1] || effectedRegisters2[2] == effectedRegisters1[1] || effectedRegisters2[3] == effectedRegisters1[1]) {
-                        return false;
-                    }
-                    return true;
-                }
-                if (effectedRegisters2[0] == 3) { //s1 rd
-                    if (effectedRegisters2[1] == effectedRegisters1[1] || effectedRegisters2[2] == effectedRegisters1[1]) {
-                        return false;
-                    }
-                    return true;
-                }
-                if (effectedRegisters2[0] == 4) { //rd
-                    if (effectedRegisters2[1] == effectedRegisters1[1]) {
-                        return false;
-                    }
-                    return true;
-                }
-                break;
-        }
-        return false;
-    }
 
+};
+
+struct ALU {
+    int FU;
+    ALU(int aluNum) {
+        FU = aluNum;
+    }
+    void cycle(std::vector<std::unique_ptr<Instruction>> &instructionList, std::queue<int> &preALU, std::queue<int> &postALU) {
+        if (preALU.empty() && postALU.size() < 2) {
+            return;
+        }
+
+        unIssueInst(instructionList, preALU.front(), FU);
+        postALU.push(preALU.front());
+        issueInst(instructionList, postALU.front(), FU == 1 ? 3 : 0);
+        preALU.pop();
+    }
+};
+
+struct WriteBack {
+    void cycle(std::vector<std::unique_ptr<Instruction>> &instructionList, std::queue<int> &postALU) {
+        if (postALU.empty()) {
+            return;
+        }
+        
+        instructionList[postALU.front()]->preformOperation();
+        unIssueInst(instructionList, postALU.front(), 0);
+        instructionList[postALU.front()]->unflagRegisters();
+        postALU.pop();
+    }
 };
 
 int main(int argc, char *argv[]) {
@@ -1116,6 +1091,10 @@ int main(int argc, char *argv[]) {
 
     IF instructionDecoder;
     issue issuer;
+    ALU alu1(1);
+    ALU alu2(2);
+    WriteBack wb;
+
     std::queue<int> preIssue;
     std::queue<int> preALU1;
     std::queue<int> preALU2;
@@ -1138,18 +1117,28 @@ int main(int argc, char *argv[]) {
         Result[i] = -1;  // -1 means the register is not currently being written by any FU
     }
 
-    issuer.cycle(instructionList, preIssue, preALU1, preALU2);
-    instructionDecoder.cycle(instructionList, preIssue);
-    std::cout << instructionDecoder.IFtoString(instructionList);
-    std::cout << writePREISSUEQ(preIssue, instructionList);
-    std::cout << writePREALU1(preALU1, instructionList);
-    std::cout << writePREALU2(preALU2, instructionList) << std::endl <<  std::endl;
-    issuer.cycle(instructionList, preIssue, preALU1, preALU2);
-    instructionDecoder.cycle(instructionList, preIssue);
-    std::cout << instructionDecoder.IFtoString(instructionList);
-    std::cout << writePREISSUEQ(preIssue, instructionList);
-    std::cout << writePREALU1(preALU1, instructionList);
-    std::cout << writePREALU2(preALU2, instructionList) << std::endl <<  std::endl;
+    bool breakFound = false;
+    int cycleNum = 1;
+    while (!breakFound) {
+        std::cout << "--------------------\nCycle " << cycleNum << ":\n\n";
+        wb.cycle(instructionList, postALU2);
+        wb.cycle(instructionList, postMem);
+        alu2.cycle(instructionList, preALU2, postALU2);
+        alu1.cycle(instructionList, preALU1, postMem);
+        issuer.cycle(instructionList, preIssue, preALU1, preALU2);
+        instructionDecoder.cycle(instructionList, preIssue);
+        std::cout << instructionDecoder.IFtoString(instructionList);
+        std::cout << writePREISSUEQ(preIssue, instructionList);
+        std::cout << writePREALU1(preALU1, instructionList);
+        std::cout << writePreMemQueue(preMem, instructionList);
+        std::cout << writePostMemQueue(postMem, instructionList);
+        std::cout << writePREALU2(preALU2, instructionList);
+        std::cout << writePostALU2(postALU2, instructionList) << std::endl << std::endl;
+        std::cout << getRegistersStr() << std::endl << std::endl;
+        std::cout << getDataMapStr(instructionList.back()->address) << std::endl;
+        breakFound = instructionDecoder.nextInstructionBreak(instructionList, (pc-256)/4);
+        cycleNum++;
+    }
 
     //writeDisassembly(OUTPUTDISASSEMBLY, getDisassembly(codes, instructionList));
     //writeSim(OUTPUTSIMULATION, simulateInstructions(instructionList));
